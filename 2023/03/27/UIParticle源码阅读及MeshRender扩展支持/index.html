@@ -28,7 +28,7 @@
 <meta property="og:description" content="UIParticle源码阅读以及MeshRender扩展支持最近需要做UI和特效混排，网上也有几种不同的解决方案：">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2023-03-26T16:00:00.000Z">
-<meta property="article:modified_time" content="2023-03-27T12:52:16.501Z">
+<meta property="article:modified_time" content="2023-03-27T13:00:05.111Z">
 <meta property="article:author" content="HanYa">
 <meta property="article:tag" content="C#">
 <meta property="article:tag" content="UGUI">
@@ -191,7 +191,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2023-03-27 00:00:00 / 修改时间：20:52:16" itemprop="dateCreated datePublished" datetime="2023-03-27T00:00:00+08:00">2023-03-27</time>
+              <time title="创建时间：2023-03-27 00:00:00 / 修改时间：21:00:05" itemprop="dateCreated datePublished" datetime="2023-03-27T00:00:00+08:00">2023-03-27</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -222,41 +222,30 @@
 <li>渲染成一张RenderTexture</li>
 <li>使用ParticleEffectForUGUI，即UIParticle</li>
 </ol>
-<p>以上三种方案各有优劣，以前经历过的项目使用的是第一种，但是对框架要求比较高，所有的排序都做在了框架里面，对业务层面没有逻辑要求。现在修改框架显然是不可能了，所以打算使用第三种方案UIParticle。<br>但是UIParticle本身只做了对Particle System的支持，但是有的特效是使用MeshRender制作的，这就很头疼，所以还需要在UIParticle中魔改一下，让它能同时支持MeshRender。</p>
-<p><strong>原理</strong><br>UIParticle的原理就是自定义了一个Render，然后屏蔽掉Particle System的Render，通过Particle System提供的接口，生成一份网格，然后使用自己继承自Maskable Graphic的Render去渲染，让原先通过自己的Render渲染的粒子系统，变成通过Canvas Render去渲染，这个时候Canvas Render会自己进行排序，达到UI和粒子显示顺序按照Hierarchy中的顺序来显示。</p>
+<p>&emsp;&emsp;以上三种方案各有优劣，以前经历过的项目使用的是第一种，但是对框架要求比较高，所有的排序都做在了框架里面，对业务层面没有逻辑要求。现在修改框架显然是不可能了，所以打算使用第三种方案UIParticle。<br>但是UIParticle本身只做了对Particle System的支持，但是有的特效是使用MeshRender制作的，这就很头疼，所以还需要在UIParticle中魔改一下，让它能同时支持MeshRender。</p>
+<p><strong>原理</strong><br>&emsp;&emsp;UIParticle的原理就是自定义了一个Render，然后屏蔽掉Particle System的Render，通过Particle System提供的接口，生成一份网格，然后使用自己继承自Maskable Graphic的Render去渲染，让原先通过自己的Render渲染的粒子系统，变成通过Canvas Render去渲染，这个时候Canvas Render会自己进行排序，达到UI和粒子显示顺序按照Hierarchy中的顺序来显示。</p>
 <p><strong>UIParticle结构</strong></p>
 <ol>
 <li>UIParticleUpdater.cs</li>
 </ol>
-<p>这个类就是整个系统的驱动类，在这个类中有一个挂载了[RuntimeInitialOnLoadMethod]特性的方法，挂载了这个特性的方法会在游戏初始化的时候自动执行，这个方法所做的事情就是将一个全局的Refresg方法注册到Canvas.willRenderCanvases这个事件中，这个事件是在Canvas渲染之前执行的。那么很明显原理其实就是在Canvas渲染之前，将自己拼好的网格注册到Graphic中，然后让Canvas去渲染。<br>这个类对外提供了Register接口，即所有的UIParticle在OnEnable的时候会将自身注册进来，然后在Refresh的时候依次调用自身的UpdateRenderers方法，负责管理和驱动所有的UIParticle。</p>
+<p>&emsp;&emsp;这个类就是整个系统的驱动类，在这个类中有一个挂载了[RuntimeInitialOnLoadMethod]特性的方法，挂载了这个特性的方法会在游戏初始化的时候自动执行，这个方法所做的事情就是将一个全局的Refresg方法注册到Canvas.willRenderCanvases这个事件中，这个事件是在Canvas渲染之前执行的。那么很明显原理其实就是在Canvas渲染之前，将自己拼好的网格注册到Graphic中，然后让Canvas去渲染。<br>这个类对外提供了Register接口，即所有的UIParticle在OnEnable的时候会将自身注册进来，然后在Refresh的时候依次调用自身的UpdateRenderers方法，负责管理和驱动所有的UIParticle。</p>
 <ol start="2">
 <li>UIParticle.cs</li>
 </ol>
-<p>UIParticle主要负责管理所有子节点的UIParticleRender，并负责驱动他们执行。每个特效都会挂载这个脚本，在OnEnable时会获取所有子节点上面的Particle System然后缓存起来，并禁用他们自身的Render，同时为每个Particle System生成一个自己的UIParticleRenderer对象（GameObject，并且会实例化出来）。<br>这个插件的原理是模拟粒子系统的运动，然后生成对应的网格。但是如果同屏出现很多粒子，在OnEnable时模拟的消耗会非常大，甚至可能会造成卡顿，这一点也是无法接受的。所以UIParticle提供了分组功能，即同组的Particle System可以共享模拟结果，即同屏所有的相同粒子只用计算一次模拟，大大减少了计算量（虽然单个粒子模拟的消耗其实也非常大）。</p>
+<p>&emsp;&emsp;UIParticle主要负责管理所有子节点的UIParticleRender，并负责驱动他们执行。每个特效都会挂载这个脚本，在OnEnable时会获取所有子节点上面的Particle System然后缓存起来，并禁用他们自身的Render，同时为每个Particle System生成一个自己的UIParticleRenderer对象（GameObject，并且会实例化出来）。<br>这个插件的原理是模拟粒子系统的运动，然后生成对应的网格。但是如果同屏出现很多粒子，在OnEnable时模拟的消耗会非常大，甚至可能会造成卡顿，这一点也是无法接受的。所以UIParticle提供了分组功能，即同组的Particle System可以共享模拟结果，即同屏所有的相同粒子只用计算一次模拟，大大减少了计算量（虽然单个粒子模拟的消耗其实也非常大）。</p>
 <ol start="3">
 <li>UIParticleRenderer.cs</li>
 </ol>
-<p>这个类就是渲染的核心类了，继承自MaskableGraphic。主要方法就是UpdateMesh，即在Canvas.willRenderCanvases中最终执行的方法就是这个UpdateMesh方法。这个方法的核心点也比较简单：</p>
-<ol>
-<li>模拟粒子运动，然后生成对应的网格</li>
-<li>将生成的网格合并到wokerMesh中</li>
-<li>设置材质</li>
-<li>如果有动画控制材质参数，则直接更新材质的属性</li>
-</ol>
-<p>但是这里有一点比较坑的是，本来粒子由发射器发射出来，是一个3D的网格，这里需要将网格合并到一个2D的Graphic，所以会将包围盒变成平面的，可能会导致3D的粒子效果有丢失。</p>
+<p>&emsp;&emsp;这个类就是渲染的核心类了，继承自MaskableGraphic。主要方法就是UpdateMesh，即在Canvas.willRenderCanvases中最终执行的方法就是这个UpdateMesh方法。这个方法的核心点也比较简单：</p>
+<p>   a. 模拟粒子运动，然后生成对应的网格<br>   b. 将生成的网格合并到wokerMesh中<br>   c. 设置材质<br>   d. 如果有动画控制材质参数，则直接更新材质的属性</p>
+<p>&emsp;&emsp;但是这里有一点比较坑的是，本来粒子由发射器发射出来，是一个3D的网格，这里需要将网格合并到一个2D的Graphic，所以会将包围盒变成平面的，可能会导致3D的粒子效果有丢失。</p>
 <ol start="4">
-<li>了解了UIParticle的原理，剩下的扩展MeshRender就比较简单了<ol>
-<li>在UIParticle中添加对所有子节点MeshRender的引用</li>
-<li>在生成UIParticleRenderer的时候，添加方法，一并生成UIMeshRenderer</li>
-<li>在UIParticle调用UIParticleRenderer的UpdateMesh的时候，调用UIMeshRenderer的UpdateMesh</li>
-<li>在UIMeshRenderer的UpdateMesh中，获取到原来MeshRender的网格，然后将这个网格合并到workerMesh中</li>
-<li>设置原来MeshRender引用的材质到自己的UIMeshRender</li>
-<li>如果有动画参数，则根据参数设置材质的属性</li>
-</ol>
+<li><p>了解了UIParticle的原理，剩下的扩展MeshRender就比较简单了<br>a. 在UIParticle中添加对所有子节点MeshRender的引用<br>b. 在生成UIParticleRenderer的时候，添加方法，一并生成UIMeshRenderer<br>c. 在UIParticle调用UIParticleRenderer的UpdateMesh的时候，调用UIMeshRenderer的UpdateMesh<br>d. 在UIMeshRenderer的UpdateMesh中，获取到原来MeshRender的网格，然后将这个网格合并到workerMesh中<br>e. 设置原来MeshRender引用的材质到自己的UIMeshRender<br>f. 如果有动画参数，则根据参数设置材质的属性</p>
 </li>
-<li>UIMeshRenderer.cs</li>
+<li><p>UIMeshRenderer.cs</p>
+</li>
 </ol>
-<p>这个类就是自定义的MeshRenderer渲染类，负责渲染原先由MeshRenderer渲染的Mesh。<br>和UIParticleRenderer不同的是，UIMeshRenderer不同自己生成网格，可以直接获取子节点上的Meshfilter组件，然后拿到他的网格数据，然后将网格合并到wokerMesh中就可以了。<br>然而以前没有做过网格的合并，临时抱佛脚看了几篇讲网格合并的文章就开始写代码了，对参数也是一知半解，在合并的时候花了很长时间效果一直不对，最后花了很久才解决，这里贴一下最后的合并参数（其实很简单，然而以前没接触过，走了很多弯路）。网格合并是通过Mesh的Combines接口来合并的，这个接口接受一个CombineInstance[] 的参数，而CombineInstance则是需要合并过来的网格的信息，其中主要有两个属性，一个就是mesh，另一个就是transform。这个transform实际上是Matrix4x4类型的一个矩阵，即需要将当前需要合并的网格变换到合并过去的网格的世界坐标空间的变换矩阵。</p>
+<p>&emsp;&emsp;这个类就是自定义的MeshRenderer渲染类，负责渲染原先由MeshRenderer渲染的Mesh。<br>和UIParticleRenderer不同的是，UIMeshRenderer不同自己生成网格，可以直接获取子节点上的Meshfilter组件，然后拿到他的网格数据，然后将网格合并到wokerMesh中就可以了。<br>&emsp;&emsp;然而以前没有做过网格的合并，临时抱佛脚看了几篇讲网格合并的文章就开始写代码了，对参数也是一知半解，在合并的时候花了很长时间效果一直不对，最后花了很久才解决，这里贴一下最后的合并参数（其实很简单，然而以前没接触过，走了很多弯路）。网格合并是通过Mesh的Combines接口来合并的，这个接口接受一个CombineInstance[] 的参数，而CombineInstance则是需要合并过来的网格的信息，其中主要有两个属性，一个就是mesh，另一个就是transform。这个transform实际上是Matrix4x4类型的一个矩阵，即需要将当前需要合并的网格变换到合并过去的网格的世界坐标空间的变换矩阵。</p>
 <figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">s_CombineInstances[<span class="number">0</span>].mesh = <span class="keyword">this</span>.filter.sharedMesh;</span><br><span class="line">s_CombineInstances[<span class="number">0</span>].transform = canvasRenderer.transform.worldToLocalMatrix </span><br><span class="line">    								* meshRenderer.transform.localToWorldMatrix;</span><br></pre></td></tr></table></figure>
 <p>剩下的就是和UIParticleRenderer一样，剔除z轴，重新计算包围盒即可。</p>
 <ol start="6">
