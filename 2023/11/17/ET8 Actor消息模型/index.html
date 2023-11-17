@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 5.4.2">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/all.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"example.com","root":"/","scheme":"Mist","version":"7.8.0","exturl":false,"sidebar":{"position":"left","display":"hide","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":true,"show_result":true,"style":"default"},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}}};
+  </script>
+
+  <meta name="description" content="ET8 Actor消息模型Actor与消息传递 &amp;emsp;&amp;emsp;Actor模型和普通面向对象设计之间的区别为, Actor之间无法直接访问和调用. 只能通过消息传递的方式与外界进行通信. Actor本身是作为一个消息处理节点存在的, 并且同一时刻同一个Actor只处理一个消息, 这样就避免了高并发的情况下出现的竞争问题.">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ET8 Actor消息模型">
+<meta property="og:url" content="http://example.com/2023/11/17/ET8%20Actor%E6%B6%88%E6%81%AF%E6%A8%A1%E5%9E%8B/index.html">
+<meta property="og:site_name" content="HanYa&#39;s Blog">
+<meta property="og:description" content="ET8 Actor消息模型Actor与消息传递 &amp;emsp;&amp;emsp;Actor模型和普通面向对象设计之间的区别为, Actor之间无法直接访问和调用. 只能通过消息传递的方式与外界进行通信. Actor本身是作为一个消息处理节点存在的, 并且同一时刻同一个Actor只处理一个消息, 这样就避免了高并发的情况下出现的竞争问题.">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-11-16T16:00:00.000Z">
+<meta property="article:modified_time" content="2023-11-17T07:14:32.669Z">
+<meta property="article:author" content="HanYa">
+<meta property="article:tag" content="C#">
+<meta property="article:tag" content="ET8">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="http://example.com/2023/11/17/ET8%20Actor%E6%B6%88%E6%81%AF%E6%A8%A1%E5%9E%8B/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome : false,
+    isPost : true,
+    lang   : 'zh-CN'
+  };
+</script>
+
+  <title>ET8 Actor消息模型 | HanYa's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <a href="/" class="brand" rel="start">
+      <span class="logo-line-before"><i></i></span>
+      <h1 class="site-title">HanYa's Blog</h1>
+      <span class="logo-line-after"><i></i></span>
+    </a>
+  </div>
+
+  <div class="site-nav-right">
+    <div class="toggle popup-trigger">
+    </div>
+  </div>
+</div>
+
+
+
+
+<nav class="site-nav">
+  <ul id="menu" class="main-menu menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-home fa-fw"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-th fa-fw"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-tags fa-fw"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-archive fa-fw"></i>总览</a>
+
+  </li>
+        <li class="menu-item menu-item-about">
+
+    <a href="/about/" rel="section"><i class="fa fa-user fa-fw"></i>关于</a>
+
+  </li>
+  </ul>
+</nav>
+
+
+
+
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content post posts-expand">
+            
+
+    
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="http://example.com/2023/11/17/ET8%20Actor%E6%B6%88%E6%81%AF%E6%A8%A1%E5%9E%8B/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.jpg">
+      <meta itemprop="name" content="HanYa">
+      <meta itemprop="description" content="天道酬勤">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="HanYa's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          ET8 Actor消息模型
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-calendar"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+              
+
+              <time title="创建时间：2023-11-17 00:00:00 / 修改时间：15:14:32" itemprop="dateCreated datePublished" datetime="2023-11-17T00:00:00+08:00">2023-11-17</time>
+            </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="far fa-folder"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/ET/" itemprop="url" rel="index"><span itemprop="name">ET</span></a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="ET8-Actor消息模型"><a href="#ET8-Actor消息模型" class="headerlink" title="ET8 Actor消息模型"></a>ET8 Actor消息模型</h1><p><strong>Actor与消息传递</strong></p>
+<p>&emsp;&emsp;<code>Actor</code>模型和普通面向对象设计之间的区别为, <code>Actor</code>之间无法直接访问和调用. 只能通过消息传递的方式与外界进行通信. <code>Actor</code>本身是作为一个消息处理节点存在的, 并且同一时刻同一个<code>Actor</code>只处理一个消息, 这样就避免了高并发的情况下出现的竞争问题.</p>
+<span id="more"></span>
+<p>&emsp;&emsp;既然<code>Actor</code>只负责消息处理, 那么这么<code>Actor</code>就需要一个MailBox作为消息存储队列. 即<code>Actor</code>每次处理消息时, 就从<code>MailBox</code>中取出一个消息进行处理. 而<code>MailBox</code>的消息应该从哪里来呢, 所以需要一个全局的<code>MessageQueue</code>消息队列来存储消息. <code>MailBox</code>以固定的频率从消息队列中获取消息, 然后进行处理和分发.<br>和传统的<code>Actor</code>模型有所不同, <code>ET8</code>的<code>Actor</code>模型更适应框架本身的功能, 所以相对于<code>Java</code>的<code>akka</code>来说, 实现上有些许的区别, 并且更为简单有效. 除了作为线程和进程间的通信工具外, <code>ET8</code>的<code>Actor</code>模型同样作用于网络消息部分, 网络消息组件在收到消息的时候只做消息的分发而不做处理, 分发逻辑同样使用<code>Actor</code>的逻辑. </p>
+<p>&nbsp;</p>
+<p><strong>Actor</strong></p>
+<p>&emsp;&emsp;<code>Actor</code>模型中的<code>Actor</code>, 在<code>ET8</code>中其实就是<code>Fiber</code>. 如果是单线程架构, <code>Fiber</code>本身就承载作为所有实体的处理中转地, 而如果是多线程模型, <code>Fiber</code>同样可以作为线程来考虑其他线程进行交互. <code>Actor</code>的地址<code>Address</code>就是<code>Fiber</code>中的<code>Address</code>结构体对象, 由<code>ProcessId + FiberId</code>构成.</p>
+<p>&nbsp;</p>
+<p><strong>MessageQueue</strong></p>
+<p>&emsp;&emsp;<code>MessageQueue</code>是继承了<code>Singleton</code>的一个全局组件, 即作为一个全局的消息队列存在, 负责接受所有<code>Actor</code>发送的消息. 因为是多线程架构, 所以消息列表需要是线程安全类型的, <code>Key</code>是<code>FiberId</code>, <code>value</code>则是线程安全的消息队列.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 线程安全的消息列表</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">readonly</span> ConcurrentDictionary&lt;<span class="built_in">int</span>, ConcurrentQueue&lt;MessageInfo&gt;&gt; messages = <span class="keyword">new</span>();</span><br></pre></td></tr></table></figure>
+
+<p>&nbsp;</p>
+<p>&emsp;&emsp;既然涉及到多个Fiber, 那么就需要一个给Fiber注册进这个消息队列的接口.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//MessageQueue.AddQueue 用于Fiber注册到MessageQueue</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">AddQueue</span>(<span class="params"><span class="built_in">int</span> fiberId</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">var</span> queue = <span class="keyword">new</span> ConcurrentQueue&lt;MessageInfo&gt;();</span><br><span class="line">    <span class="keyword">this</span>.messages[fiberId] = queue;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>&nbsp;</p>
+<p>&emsp;&emsp;提供给外部使用的, 将消息注册到消息队列中的接口.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// MessageQueue.Send 将消息同步到消息队列</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">Send</span>(<span class="params">ActorId actorId, MessageObject messageObject</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">this</span>.Send(actorId.Address, actorId, messageObject);</span><br><span class="line">&#125;</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">Send</span>(<span class="params">Address fromAddress, ActorId actorId, MessageObject messageObject</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!<span class="keyword">this</span>.messages.TryGetValue(actorId.Address.Fiber, <span class="keyword">out</span> <span class="keyword">var</span> queue))</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line">    queue.Enqueue(<span class="keyword">new</span> MessageInfo() &#123;ActorId = <span class="keyword">new</span> ActorId(fromAddress, actorId.InstanceId), MessageObject = messageObject&#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>&nbsp;</p>
+<p>&emsp;&emsp;提供给外部使用的, 从消息队列中取出<code>Actor</code>将要处理的消息的接口.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// MessageQueue.Fetch</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">Fetch</span>(<span class="params"><span class="built_in">int</span> fiberId, <span class="built_in">int</span> count, List&lt;MessageInfo&gt; list</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (!<span class="keyword">this</span>.messages.TryGetValue(fiberId, <span class="keyword">out</span> <span class="keyword">var</span> queue))</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> (<span class="built_in">int</span> i = <span class="number">0</span>; i &lt; count; ++i)</span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">if</span> (!queue.TryDequeue(<span class="keyword">out</span> MessageInfo message))</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        list.Add(message);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>&nbsp;</p>
+<p><strong>ProcessInnerSender</strong></p>
+<p>&emsp;&emsp;如果说<code>MessageQueue</code>消息队列是作为全局的消息分发中心, 那么<code>ProcessInnerSender</code>组件则是作为<code>Actor(Fiber)</code>内部的消息分发中心. <code>ProcessInnerSender</code>组件继承自<code>Entity</code>, 实现了<code>IUpdate</code>等接口. 该组件实际上就是作为<code>Fiber</code>的基础组件来使用的, 只要是涉及到消息的传递和分发, 都需要挂载该组件.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ProcessInnerSender</span></span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">ProcessInnerSender</span>: <span class="title">Entity</span>, <span class="title">IAwake</span>, <span class="title">IDestroy</span>, <span class="title">IUpdate</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">const</span> <span class="built_in">long</span> TIMEOUT_TIME = <span class="number">40</span> * <span class="number">1000</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">public</span> <span class="built_in">int</span> RpcId;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">readonly</span> Dictionary&lt;<span class="built_in">int</span>, MessageSenderStruct&gt; requestCallback = <span class="keyword">new</span>();</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">public</span> <span class="keyword">readonly</span> List&lt;MessageInfo&gt; list = <span class="keyword">new</span>();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>&nbsp;</p>
+<p>&emsp;&emsp;在将该组件挂载到<code>Scene</code>下时, 会触发<code>Awake</code>接口, 即将该组件所属的<code>Fiber</code>注册到<code>MessageQueue</code>中.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ProcessInnerSenderSystem.Awake</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">Awake</span>(<span class="params"><span class="keyword">this</span> ProcessInnerSender self</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    Fiber fiber = self.Fiber();</span><br><span class="line">    MessageQueue.Instance.AddQueue(fiber.Id);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>&nbsp;</p>
+<p>&emsp;&emsp;<code>ProcessInnerSender</code>组件每帧从<code>MessageQueue</code>中取出一千条消息来处理, <code>1000</code>条可以根据实际性能来处理, 实际上理论上应该不会超过<code>1000</code>条. 如果<code>1000</code>条消息的处理会导致掉帧, 这里可以减少每帧处理消息的数量. 消息处理实际上就是根据<code>MessageInfo</code>中<code>ActorId</code>里保存的<code>InstanceId</code>来拿到<code>Fiber Mailboxes</code>对象中对应的<code>MailBoxComponent</code>组件, 然后分发该消息, 让<code>MailBoxComponent</code>组件来处理.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ProcessInnerSenderSystem.Update</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">Update</span>(<span class="params"><span class="keyword">this</span> ProcessInnerSender self</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    self.list.Clear();</span><br><span class="line">    Fiber fiber = self.Fiber();</span><br><span class="line">    MessageQueue.Instance.Fetch(fiber.Id, <span class="number">1000</span>, self.list);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">foreach</span> (MessageInfo actorMessageInfo <span class="keyword">in</span> self.list)</span><br><span class="line">    &#123;</span><br><span class="line">        self.HandleMessage(fiber, actorMessageInfo);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// ProcessInnerSenderSystem.HandleMessage</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">HandleMessage</span>(<span class="params"><span class="keyword">this</span> ProcessInnerSender self, Fiber fiber, <span class="keyword">in</span> MessageInfo messageInfo</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="keyword">if</span> (messageInfo.MessageObject <span class="keyword">is</span> IResponse response)</span><br><span class="line">    &#123;</span><br><span class="line">        self.HandleIActorResponse(response);</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    ActorId actorId = messageInfo.ActorId;</span><br><span class="line">    MessageObject message = messageInfo.MessageObject;</span><br><span class="line"></span><br><span class="line">    MailBoxComponent mailBoxComponent = self.Fiber().Mailboxes.Get(actorId.InstanceId);</span><br><span class="line">    <span class="comment">// ...</span></span><br><span class="line">    mailBoxComponent.Add(actorId.Address, message);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>&nbsp;</p>
+<p><strong>MailBoxComponent</strong></p>
+<p>&emsp;&emsp;<code>MailBoxComponent</code>中的<code>Add</code>方法作为消息传递分发中最后的一环, 实际上就是根据当前组件的类型来派发事件<code>MailBoxInvoker</code>.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 核心方法, 分发事件</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">Add</span>(<span class="params"><span class="keyword">this</span> MailBoxComponent self, Address fromAddress, MessageObject messageObject</span>)</span></span><br><span class="line">&#123;</span><br><span class="line">    <span class="comment">// 根据mailboxType进行分发处理</span></span><br><span class="line">    EventSystem.Instance.Invoke((<span class="built_in">long</span>)self.MailBoxType, <span class="keyword">new</span> MailBoxInvoker() &#123;MailBoxComponent = self, MessageObject = messageObject, FromAddress = fromAddress&#125;);</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+<p>&nbsp;</p>
+<p>&emsp;&emsp;MailBoxComponent分为有序和无序两种类型, 其本质都是派发事件, 但是由于的多线程的原因, 有序需要保证顺序, 所以在派发时会添加携程锁, 然后再派发事件.</p>
+<figure class="highlight csharp"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 无序类型消息处理</span></span><br><span class="line">[<span class="meta">Invoke((long)MailBoxType.UnOrderedMessage)</span>]</span><br><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">MailBoxType_UnOrderedMessageHandler</span>: <span class="title">AInvokeHandler</span>&lt;<span class="title">MailBoxInvoker</span>&gt;</span><br><span class="line">&#123;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">override</span> <span class="keyword">void</span> <span class="title">Handle</span>(<span class="params">MailBoxInvoker args</span>)</span></span><br><span class="line">    &#123;</span><br><span class="line">        HandleAsync(args).Coroutine();</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">async</span> ETTask <span class="title">HandleAsync</span>(<span class="params">MailBoxInvoker args</span>)</span></span><br><span class="line">    &#123;</span><br><span class="line">        MailBoxComponent mailBoxComponent = args.MailBoxComponent;</span><br><span class="line">        </span><br><span class="line">        MessageObject messageObject = (MessageObject)args.MessageObject;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">await</span> MessageDispatcher.Instance.Handle(mailBoxComponent.Parent, args.FromAddress, messageObject);</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>&emsp;&emsp;这里<code>MessageDispatcher</code>和<code>EventSystem</code>相同, 唯一的区别就是<code>MessageDispatcher</code>的注册标签是<code>Message</code>, 其他的逻辑和<code>EventSystem</code>是一样的, 都是根据消息来派发事件和处理.</p>
+<p>&nbsp;</p>
+<p><strong>总结</strong></p>
+<ol>
+<li>首先所有的消息都会打上<code>Message</code>标签, 在初始化时, 注册到<code>MessageDispatcher</code>中.</li>
+<li>在<code>Fiber</code>中会添加<code>ProcessInnerSender</code>组件, 该组件提供发消息的接口.</li>
+<li>通过调用<code>ProcessInnerSender</code>提供的接口发送的消息会统一注册到<code>MessageQueue</code>中等待处理.</li>
+<li>同样的<code>ProcessInnerSender</code>组件每一帧会从<code>MessageQueue</code>中获取当前<code>Fiber</code>需要处理的消息.</li>
+<li><code>ProcessInnerSender</code>取到当前帧需要处理的消息之后, 根据消息中携带的<code>InstanceId</code>分发到<code>Fiber</code>初始化时注册好的<code>MailBoxComponent</code>组件中.</li>
+<li><code>MailBoxComponent</code>组件则是根据当前邮箱类型进一步进行消息的分发.</li>
+<li>此时<code>MessageDispatcher</code>则根据消息的类型找到已经注册好的消息处理方法进行处理.</li>
+</ol>
+<p>&nbsp;</p>
+<p><strong>注</strong></p>
+<ol>
+<li>线程间的通信, 进程间的通信, 以及发送网络请求, 响应网络协议都算消息.</li>
+<li>Actor模型只负责消息的中转和派发, 并不实际区分消息的类别.</li>
+<li>在网络协议中请求和响应在处理上有些许区别, 但是区别不大.</li>
+<li>所有的消息最终都是通过<code>MessageDispatcher</code>来处理的, 网络请求也是将请求的内容封装成消息, 最终响应的网络模块则发送协议. 而响应也同样是网络模块接受到协议之后, 将内容封装成消息然后通过<code>ProcessInnerSender</code>组件进行转发.</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          
+          <div class="post-tags">
+              <a href="/tags/C/" rel="tag" style="background: #303030"><i class="fa fa-tag"></i> C#</a>
+              <a href="/tags/ET8/" rel="tag" style="background: #303030"><i class="fa fa-tag"></i> ET8</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2023/11/01/Unity%E8%B5%84%E6%BA%90%E5%BC%95%E7%94%A8%E7%B4%A2%E5%BC%95%E5%B7%A5%E5%85%B7/" rel="prev" title="Unity资源引用索引工具">
+      <i class="fa fa-chevron-left"></i> Unity资源引用索引工具
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let { activeClass } = CONFIG.comments;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#ET8-Actor%E6%B6%88%E6%81%AF%E6%A8%A1%E5%9E%8B"><span class="nav-number">1.</span> <span class="nav-text">ET8 Actor消息模型</span></a></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+    <img class="site-author-image" itemprop="image" alt="HanYa"
+      src="/images/avatar.jpg">
+  <p class="site-author-name" itemprop="name">HanYa</p>
+  <div class="site-description" itemprop="description">天道酬勤</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">8</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">4</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">9</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="/qiw692083@gmail.com" title="E-Mail → qiw692083@gmail.com"><i class="fa fa-envelope fa-fw"></i>E-Mail</a>
+      </span>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2023</span>
+  <span class="with-love">
+    <i class="fa fa-heart"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">HanYa</span>
+</div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/muse.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>
